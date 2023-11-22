@@ -23,6 +23,9 @@ public protocol PlainListDataProvider {
 }
 
 open class AnyPlainListDataProvider<U>: PlainListDataProvider {
+    
+    public init() {}
+    
     open func fetchData(offset: Int) async throws -> PlainListResponse<U> {
         fatalError("subclass must implement fetchData")
     }
