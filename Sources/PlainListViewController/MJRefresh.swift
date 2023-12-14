@@ -15,8 +15,6 @@ public class RefreshFooter: MJRefreshAutoNormalFooter {
     
     public override func prepare() {
         super.prepare()
-        stateLabel?.isHidden = true
-        isRefreshingTitleHidden = true
     }
 }
 

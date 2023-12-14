@@ -26,6 +26,7 @@ public class EmptyView: UIView {
         textLabel.textColor = .secondaryLabel
         
         imageView.image = UIImage(systemName: "hand.raised")
+        imageView.tintColor = UIColor.black
         stackView = UIStackView(arrangedSubviews: [imageView, textLabel])
         stackView.distribution = .fill
         stackView.alignment = .center

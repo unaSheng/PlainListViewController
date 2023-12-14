@@ -23,7 +23,6 @@ public protocol PlainListDataProvider {
 }
 
 open class AnyPlainListDataProvider<U>: PlainListDataProvider {
-    
     public init() {}
     
     open func fetchData(offset: Int) async throws -> PlainListResponse<U> {
@@ -31,14 +30,13 @@ open class AnyPlainListDataProvider<U>: PlainListDataProvider {
     }
 }
 
-open class PlainListCell<DataModel>: UICollectionViewCell {
-    
-    open func render(_ item: DataModel) {
+open class PlainListCell<Item>: UICollectionViewCell {
+    open func render(_ item: Item) {
         fatalError("must overrided in subclass")
     }
 }
 
-open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<DataModel>>: UIViewController, UICollectionViewDelegate {
+open class PlainListViewController<Item: Hashable, Cell: PlainListCell<Item>>: UIViewController, UICollectionViewDelegate {
     
     public struct Section: Hashable {
         
@@ -47,8 +45,9 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
         public static var main: Section { Section(id: "main") }
     }
     
-    public struct Item: Hashable {
-        public let value: DataModel
+    struct ItemLayout {
+        var layout: NSCollectionLayoutItem
+        var item: Item
     }
     
     /// A Boolean value indicates current list supports pull to refresh.
@@ -57,26 +56,25 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
     /// A Boolean value indicates current list supports auto load more.
     open var supportAutoLoadMore: Bool { true }
     
-    open var displayEmptyPlaceholder: Bool { true }
-    
     open var displayInititalLoadingIndicator: Bool { true }
     
-    open var emptyPlaceholder: String? { return nil }
-    
-    open var emptyView: EmptyView!
-    
-    var emptyPlaceholderProvider: (() -> UIViewController)?
-    var placeholderViewController: UIViewController?
+    open var emptyView: UIView? {
+        let view = EmptyView()
+        view.updateUI(title: "暂无内容")
+        return view
+    }
     
     private(set) var collectionView: UICollectionView!
-    var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
     private(set) var nextOffset = 0
     private(set) var total: Int? = nil
-    let loadingIndicator = UIActivityIndicatorView(style: .medium)
     private(set) var hasShownLoadingIndicator = false
     
-    public let dataProvider: AnyPlainListDataProvider<DataModel>
-    public init(dataProvider: AnyPlainListDataProvider<DataModel>) {
+    var layoutItems: [ItemLayout] = []
+    var dataSource: UICollectionViewDiffableDataSource<Section, Item>!
+    let loadingIndicator = UIActivityIndicatorView(style: .medium)
+    
+    public let dataProvider: AnyPlainListDataProvider<Item>
+    public init(dataProvider: AnyPlainListDataProvider<Item>) {
         self.dataProvider = dataProvider
         super.init(nibName: nil, bundle: nil)
     }
@@ -87,7 +85,6 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
     
     open override func viewDidLoad() {
         super.viewDidLoad()
-        
         view.backgroundColor = .systemBackground
         setupCollectionView()
         setupDataSource()
@@ -97,25 +94,40 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
     }
     
     // MARK: - Setup
-    
     private func setupCollectionView() {
         collectionView = UICollectionView(frame: view.bounds, collectionViewLayout: createLayout())
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collectionView.delegate = self
         collectionView.backgroundColor = .clear
         view.addSubview(collectionView)
-        
         if supportPullToRefresh {
             collectionView.mj_header = RefreshHeader(refreshingBlock: { [weak self] in
                 self?.applySnapshot(loadMore: false)
             })
         }
-        
         if supportAutoLoadMore {
             collectionView.mj_footer = RefreshFooter(refreshingBlock: { [weak self] in
                 self?.applySnapshot(loadMore: true)
             })
         }
+    }
+    
+    open func createLayout() -> UICollectionViewLayout {
+        let layout = UICollectionViewCompositionalLayout.init { [weak self] index, environment in
+            let groupSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(UIScreen.main.bounds.height * 2))
+            let subItems: [NSCollectionLayoutItem]
+            if let items = self?.layoutItems, !items.isEmpty {
+                subItems = items.map({ $0.layout })
+            } else {
+                let itemSize = NSCollectionLayoutSize(widthDimension: .fractionalWidth(1), heightDimension: .estimated(10))
+                let item = NSCollectionLayoutItem(layoutSize: itemSize)
+                subItems = [item]
+            }
+            let group = NSCollectionLayoutGroup.vertical(layoutSize: groupSize, subitems: subItems)
+            let section = NSCollectionLayoutSection(group: group)
+            return section
+        }
+        return layout
     }
     
     open func setupDataSource() {
@@ -124,13 +136,13 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
             let nib = UINib(nibName: c.nibName, bundle: nil)
             cellRegistration = UICollectionView.CellRegistration(cellNib: nib) { [weak self] cell, indexPath, itemIdentifier in
                 self?.configure(cell: cell, indexPath: indexPath, item: itemIdentifier)
-                cell.render(itemIdentifier.value)
+                cell.render(itemIdentifier)
                 self?.update(cell: cell, indexPath: indexPath, item: itemIdentifier)
             }
         } else {
             cellRegistration = UICollectionView.CellRegistration<Cell, Item> { [weak self] (cell, indexPath, itemIdentifier) in
                 self?.configure(cell: cell, indexPath: indexPath, item: itemIdentifier)
-                cell.render(itemIdentifier.value)
+                cell.render(itemIdentifier)
                 self?.update(cell: cell, indexPath: indexPath, item: itemIdentifier)
             }
         }
@@ -147,39 +159,16 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
         // subclass can configure cell
     }
     
-    open func createLayout() -> UICollectionViewLayout {
-        var config = UICollectionLayoutListConfiguration(appearance: .plain)
-        config.backgroundColor = .clear
-        config.showsSeparators = false
-        return UICollectionViewCompositionalLayout.list(using: config)
-    }
-    
     open func setupEmptyView() {
-        guard displayEmptyPlaceholder else {
-            return
-        }
-        if let vc = emptyPlaceholderProvider?() {
-            placeholderViewController = vc
-            view.addSubview(vc.view)
-            vc.view.frame = view.bounds
-            addChild(vc)
-            vc.didMove(toParent: self)
-            vc.view.isHidden = true
-        } else {
-            emptyView = EmptyView(frame: collectionView.bounds)
-            emptyView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            emptyView.updateUI(title: emptyPlaceholder)
-            emptyView.isHidden = true
-            collectionView.addSubview(emptyView)
-        }
+        collectionView.backgroundView = emptyView
+        collectionView.backgroundView?.isHidden = true
     }
     
-    public func checkEmptyView() {
+    func checkEmptyView() {
         let hidden = dataSource.snapshot().itemIdentifiers.isEmpty == false
-        if let vc = placeholderViewController {
-            vc.view?.isHidden = hidden
-        } else {
-            emptyView?.isHidden = hidden
+        collectionView.backgroundView?.isHidden = hidden
+        if supportAutoLoadMore {
+            collectionView.mj_footer?.isHidden = !hidden
         }
     }
     
@@ -194,6 +183,29 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
         }
     }
     
+    func generateLayout(items: [Item]) -> [ItemLayout] {
+        if #available(iOS 16, *) {
+            return []
+        }
+        let layoutItems = items.map({ item in
+            let contentView: UIView
+            if let c = Cell.self as? NibInstantiatable.Type {
+                let cell = c.instantiateFromNib() as! PlainListCell<Item>
+                cell.render(item)
+                contentView = cell
+            } else {
+                let cell = Cell()
+                cell.render(item)
+                contentView = cell
+            }
+            let fittingSize = CGSize(width: view.bounds.width, height: UIView.layoutFittingCompressedSize.height)
+            let size = contentView.systemLayoutSizeFitting(fittingSize, withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
+            let layoutItem = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .fractionalWidth(1.0), heightDimension: .absolute(ceil(size.height))))
+            return ItemLayout(layout: layoutItem, item: item)
+        })
+        return layoutItems
+    }
+    
     // MARK: - Snapshot
     
     /// Apply snapshot, subclass can override this method to implement complex snapshot.
@@ -206,27 +218,24 @@ open class PlainListViewController<DataModel: Hashable, Cell: PlainListCell<Data
                     hasShownLoadingIndicator = true
                     loadingIndicator.startAnimating()
                 }
-                
                 let offset = loadMore ? nextOffset : 0
                 let response = try await dataProvider.fetchData(offset: offset)
                 self.nextOffset = response.nextOffset
                 self.total = response.total
                 if !loadMore {
+                    let items = Array(response.list.uniqued())
+                    layoutItems = generateLayout(items: items)
                     var snapshot = NSDiffableDataSourceSectionSnapshot<Item>()
-                    let items = Array(response.list.map { Item(value: $0) }.uniqued())
-                    snapshot.append(items)
-                    dataSource.apply(snapshot, to: .main)
-                    
-                } else {
-                    var snapshot = dataSource.snapshot(for: .main)
-                    var items = dataSource.snapshot(for: .main).items
-                    items.append(contentsOf: response.list.map { Item(value: $0) })
-                    items = Array(items.uniqued())
-                    snapshot.deleteAll()
                     snapshot.append(items)
                     dataSource.apply(snapshot, to: .main, animatingDifferences: false)
+                } else {
+                    var snapshot = dataSource.snapshot(for: .main)
+                    let currentItems = self.dataSource.snapshot(for: .main).items
+                    let newItems = Array(Array((currentItems + response.list).uniqued()).dropFirst(currentItems.count))
+                    layoutItems += generateLayout(items: newItems)
+                    snapshot.append(newItems)
+                    dataSource.apply(snapshot, to: .main, animatingDifferences: false)
                 }
-                
                 loadingIndicator.stopAnimating()
                 checkEmptyView()
                 collectionView.endMJRefresh(hasMore: response.hasNext)
