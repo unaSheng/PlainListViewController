@@ -64,7 +64,7 @@ open class PlainListViewController<Item: Hashable, Cell: PlainListCell<Item>>: U
         return view
     }
     
-    private(set) var collectionView: UICollectionView!
+    public var collectionView: UICollectionView!
     private(set) var nextOffset = 0
     private(set) var total: Int? = nil
     private(set) var hasShownLoadingIndicator = false
@@ -279,4 +279,9 @@ open class PlainListViewController<Item: Hashable, Cell: PlainListCell<Item>>: U
     open func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
         
     }
+    
+    open func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        
+    }
+    
 }
