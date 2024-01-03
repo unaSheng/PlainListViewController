@@ -1,0 +1,27 @@
+{
+  "name": "PlainListViewController",
+  "version": "0.1.0",
+  "summary": "A short description of PlainListViewController.",
+  "description": "TODO: Add long description of the pod here.",
+  "homepage": "https://github.com/unaSheng/PlainListViewController",
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE"
+  },
+  "authors": {
+    "unaSheng": "li.wenxiu@immomo.com"
+  },
+  "source": {
+    "git": "https://github.com/unaSheng/PlainListViewController.git",
+    "tag": "0.1.0"
+  },
+  "platforms": {
+    "ios": "14.0"
+  },
+  "source_files": "Sources/PlainListViewController/*",
+  "dependencies": {
+    "MJRefresh": [
+
+    ]
+  }
+}

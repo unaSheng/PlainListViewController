@@ -1,0 +1,23 @@
+PODS:
+  - MJRefresh (3.7.6)
+  - PlainListViewController (0.1.0):
+    - MJRefresh
+
+DEPENDENCIES:
+  - PlainListViewController (from `../`)
+
+SPEC REPOS:
+  trunk:
+    - MJRefresh
+
+EXTERNAL SOURCES:
+  PlainListViewController:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  MJRefresh: 2fe7fb43a5167ceda20bb7e63f130c04fd1814a5
+  PlainListViewController: dab09738280802a10c00a5563dcd124c533b4f9c
+
+PODFILE CHECKSUM: ff84e19befcf15808a7d52c8dd55852f026bb16e
+
+COCOAPODS: 1.13.0

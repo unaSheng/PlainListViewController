@@ -1,0 +1,6 @@
+framework module PlainListViewController {
+  umbrella header "PlainListViewController-umbrella.h"
+
+  export *
+  module * { export * }
+}
